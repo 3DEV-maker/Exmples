@@ -1,0 +1,234 @@
+let canvas = document.getElementById('gameCanvas');
+let ctx = canvas.getContext('2d');
+
+class GameObject {
+    constructor(x, y, size, color) {
+        this.x = x;
+        this.y = y;
+        this.size = size;
+        this.color = color;
+    }
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+class Bullet extends GameObject {
+    constructor(x, y, size, color) {
+        super(x, y, size, color);
+        this.speed = 5;
+    }
+
+    move() {
+        this.y -= this.speed;
+    }
+}
+
+class Asteroid extends GameObject {
+    constructor(x, y, size, color) {
+        super(x, y, size, color);
+        this.speed = 2;
+    }
+
+    move() {
+        this.y += this.speed;
+    }
+}
+
+class PowerUp extends GameObject {
+    constructor(x, y, type) {
+        super(x, y, 10, type === 'shield' ? 'blue' : 'yellow');
+        this.type = type;
+        this.speed = 1;
+    }
+
+    move() {
+        this.y += this.speed;
+    }
+}
+
+let spaceship = new GameObject(canvas.width / 2, canvas.height - 40, 20, 'blue');
+let bullets = [];
+let asteroids = [];
+let powerUps = [];
+let keys = {};
+let score = 0;
+let highScore = localStorage.getItem('highScore') ? parseInt(localStorage.getItem('highScore')) : 0;
+let hasShield = false;
+let multiShot = false;
+
+document.addEventListener('keydown', function(event) {
+    keys[event.key] = true;
+});
+
+document.addEventListener('keyup', function(event) {
+    keys[event.key] = false;
+});
+
+function spawnAsteroid() {
+    let asteroid = new Asteroid(Math.random() * canvas.width, 0, 20, 'gray');
+    asteroids.push(asteroid);
+}
+
+function spawnPowerUp() {
+    let type = Math.random() < 0.5 ? 'shield' : 'multiShot';
+    let powerUp = new PowerUp(Math.random() * canvas.width, 0, type);
+    powerUps.push(powerUp);
+}
+
+function shootBullet() {
+    let bullet = new Bullet(spaceship.x, spaceship.y - 20, 5, 'yellow');
+    bullets.push(bullet);
+    
+    if (multiShot) {
+        let bullet2 = new Bullet(spaceship.x - 10, spaceship.y - 20, 5, 'yellow');
+        let bullet3 = new Bullet(spaceship.x + 10, spaceship.y - 20, 5, 'yellow');
+        bullets.push(bullet2, bullet3);
+    }
+}
+
+function drawScore() {
+    ctx.font = '20px Arial';
+    ctx.fillStyle = 'white';
+    ctx.fillText('Score: ' + score, 10, 30);
+    ctx.fillText('High Score: ' + highScore, 10, 50);
+}
+
+function resetGame() {
+    asteroids = [];
+    bullets = [];
+    powerUps = [];
+    score = 0;
+    hasShield = false;
+    multiShot = false;
+    drawGameOver();
+}
+
+function drawGameOver() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'red';
+    ctx.font = '40px Arial';
+    ctx.fillText('Game Over!', canvas.width / 2 - 100, canvas.height / 2);
+    ctx.font = '20px Arial';
+    ctx.fillText('Press Enter to Restart', canvas.width / 2 - 100, canvas.height / 2 + 40);
+}
+
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') {
+        resetGame();
+        drawScene();
+    }
+});
+
+function drawScene() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (keys['ArrowLeft']) spaceship.x -= 5;
+    if (keys['ArrowRight']) spaceship.x += 5;
+
+    if (spaceship.x < 0) spaceship.x = 0;
+    if (spaceship.x > canvas.width) spaceship.x = canvas.width;
+
+    spaceship.draw();
+
+    // Spawn asteroids and power-ups randomly
+    if (Math.random() < 0.02) spawnAsteroid();
+    if (Math.random() < 0.01) spawnPowerUp();
+
+    // Move and draw asteroids
+    asteroids.forEach((asteroid, index) => {
+        asteroid.move();
+        asteroid.draw();
+
+        // Check if asteroid collides with spaceship
+        let dx = asteroid.x - spaceship.x;
+        let dy = asteroid.y - spaceship.y;
+        let distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < asteroid.size + spaceship.size) {
+            if (hasShield) {
+                hasShield = false;
+                asteroids.splice(index, 1); // Destroy asteroid if shield is active
+            } else {
+                resetGame(); // Game Over and reset
+            }
+        }
+
+        // Remove asteroid if it goes off-screen
+        if (asteroid.y > canvas.height) {
+            asteroids.splice(index, 1);
+            score++;  // Increment score for avoiding asteroid
+        }
+    });
+
+    // Move and draw power-ups
+    powerUps.forEach((powerUp, index) => {
+        powerUp.move();
+        powerUp.draw();
+
+        // Check if spaceship collects a power-up
+        let dx = powerUp.x - spaceship.x;
+        let dy = powerUp.y - spaceship.y;
+        let distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < powerUp.size + spaceship.size) {
+            if (powerUp.type === 'shield') {
+                hasShield = true;
+            } else if (powerUp.type === 'multiShot') {
+                multiShot = true;
+            }
+            powerUps.splice(index, 1); // Remove power-up after collection
+        }
+
+        // Remove power-up if it goes off-screen
+        if (powerUp.y > canvas.height) {
+            powerUps.splice(index, 1);
+        }
+    });
+
+    // Shoot bullets when spacebar is pressed
+    if (keys[' '] || keys['Space']) {
+        shootBullet();
+    }
+
+    // Move and draw bullets
+    bullets.forEach((bullet, index) => {
+        bullet.move();
+        bullet.draw();
+
+        // Remove bullet if it goes off-screen
+        if (bullet.y < 0) {
+            bullets.splice(index, 1);
+        }
+
+        // Check if bullet hits asteroid
+        asteroids.forEach((asteroid, asteroidIndex) => {
+            let dx = bullet.x - asteroid.x;
+            let dy = bullet.y - asteroid.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < bullet.size + asteroid.size) {
+                // Destroy asteroid and bullet
+                asteroids.splice(asteroidIndex, 1);
+                bullets.splice(index, 1);
+                score += 10;  // Increment score for destroying asteroid
+            }
+        });
+    });
+
+    // Update high score if needed
+    if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('highScore', highScore); // Save high score to localStorage
+    }
+
+    // Draw score
+    drawScore();
+
+    requestAnimationFrame(drawScene);
+}
+
+drawScene();

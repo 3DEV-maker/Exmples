@@ -1,0 +1,132 @@
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const gridSize = 20;
+const canvasWidth = 500;
+const canvasHeight = 500;
+canvas.width = canvasWidth;
+canvas.height = canvasHeight;
+
+let snake = [{ x: 100, y: 100 }];
+let direction = 'right';
+let food = { x: 200, y: 200 };
+let score = 0;
+let speed = 100; // سرعة الحركة
+let gameOver = false;
+
+function drawSnake() {
+    for (let i = 0; i < snake.length; i++) {
+        ctx.fillStyle = i === 0 ? 'green' : 'lightgreen';
+        ctx.fillRect(snake[i].x, snake[i].y, gridSize, gridSize);
+    }
+}
+
+function drawFood() {
+    ctx.fillStyle = 'red';
+    ctx.fillRect(food.x, food.y, gridSize, gridSize);
+}
+
+function drawScore() {
+    ctx.fillStyle = 'white';
+    ctx.font = '20px Arial';
+    ctx.fillText('Score: ' + score, 10, 30);
+}
+
+function moveSnake() {
+    let head = { ...snake[0] };
+
+    if (direction === 'right') head.x += gridSize;
+    if (direction === 'left') head.x -= gridSize;
+    if (direction === 'up') head.y -= gridSize;
+    if (direction === 'down') head.y += gridSize;
+
+    snake.unshift(head);
+
+    if (head.x === food.x && head.y === food.y) {
+        score++;
+        speed = Math.max(50, speed - 5); // زيادة السرعة كلما ارتفع السكور
+        placeFood();
+    } else {
+        snake.pop();
+    }
+}
+
+function placeFood() {
+    food.x = Math.floor(Math.random() * (canvasWidth / gridSize)) * gridSize;
+    food.y = Math.floor(Math.random() * (canvasHeight / gridSize)) * gridSize;
+}
+
+function checkCollision() {
+    let head = snake[0];
+
+    if (head.x < 0 || head.x >= canvasWidth || head.y < 0 || head.y >= canvasHeight) {
+        return true;
+    }
+
+    for (let i = 1; i < snake.length; i++) {
+        if (head.x === snake[i].x && head.y === snake[i].y) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function changeDirection(event) {
+    if (event.key === 'ArrowRight' && direction !== 'left') {
+        direction = 'right';
+    } else if (event.key === 'ArrowLeft' && direction !== 'right') {
+        direction = 'left';
+    } else if (event.key === 'ArrowUp' && direction !== 'down') {
+        direction = 'up';
+    } else if (event.key === 'ArrowDown' && direction !== 'up') {
+        direction = 'down';
+    }
+}
+
+function updateGame() {
+    if (checkCollision()) {
+        gameOver = true;
+        displayGameOver();
+    } else {
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+        moveSnake();
+        drawSnake();
+        drawFood();
+        drawScore();
+    }
+}
+
+function displayGameOver() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    ctx.fillStyle = 'white';
+    ctx.font = '30px Arial';
+    ctx.fillText('Game Over!', canvasWidth / 2 - 90, canvasHeight / 2 - 20);
+    ctx.font = '20px Arial';
+    ctx.fillText('Score: ' + score, canvasWidth / 2 - 50, canvasHeight / 2 + 20);
+    ctx.fillText('Press R to Restart', canvasWidth / 2 - 90, canvasHeight / 2 + 60);
+}
+
+function resetGame() {
+    snake = [{ x: 100, y: 100 }];
+    direction = 'right';
+    score = 0;
+    speed = 100;
+    gameOver = false;
+    placeFood();
+}
+
+window.addEventListener('keydown', function (event) {
+    if (gameOver && event.key === 'r') {
+        resetGame();
+    } else {
+        changeDirection(event);
+    }
+});
+
+placeFood();
+setInterval(function() {
+    if (!gameOver) {
+        updateGame();
+    }
+}, speed);
